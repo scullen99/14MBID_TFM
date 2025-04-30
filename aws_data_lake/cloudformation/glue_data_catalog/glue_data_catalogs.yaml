@@ -1,0 +1,285 @@
+# YAML Glue Data Catalog
+
+# contacto: sergio.tarrero@student.universidadviu.com
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Unificación de Glue Data Catalogs para Bronze, Silver y Gold layers"
+
+Resources:
+
+  ### ----------------------- BRONZE -----------------------
+  GlueCrawlerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Ingestion"
+        - Key: "Layer"
+          Value: "Bronze"
+
+  BronzeDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_bronze_data"
+        Description: "(Json Files) Database containing weather data stored in the Bronze layer of the data lake."
+        Parameters:
+          classification: "json"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Bronze"
+          Purpose: "Ingestion"
+
+  BronzeDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-bronze-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRole.Arn
+      DatabaseName: !Ref BronzeDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_bronze_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Bronze"
+        Purpose: "Ingestion"
+
+  ### ----------------------- SILVER -----------------------
+  GlueCrawlerExecutionRoleSilver:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRoleSilver"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicySilver
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Transformation"
+        - Key: "Layer"
+          Value: "Silver"
+
+  SilverDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_silver_data"
+        Description: "(CSV Files) Database containing weather data stored in the Silver layer of the data lake."
+        Parameters:
+          classification: "csv"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Silver"
+          Purpose: "Transformation"
+
+  SilverDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-silver-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRoleSilver.Arn
+      DatabaseName: !Ref SilverDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_silver_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Silver"
+        Purpose: "Transformation"
+
+  ### ----------------------- GOLD -----------------------
+  GlueCrawlerExecutionRoleGold:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRoleGold"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicyGold
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Consumption"
+        - Key: "Layer"
+          Value: "Gold"
+
+  GoldDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_gold_data"
+        Description: "(Parquet Files) Database containing optimized data stored in the Gold layer of the data lake."
+        Parameters:
+          classification: "parquet"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Gold"
+          Purpose: "Consumption"
+
+  GoldDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-gold-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRoleGold.Arn
+      DatabaseName: !Ref GoldDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_gold_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Gold"
+        Purpose: "Consumption"
+
+Outputs:
+  BronzeDatabaseName:
+    Description: "Name of the Glue Data Catalog database (Bronze)"
+    Value: !Ref BronzeDataCatalogDatabase
+
+  BronzeCrawlerName:
+    Description: "Name of the Glue Crawler (Bronze)"
+    Value: !Ref BronzeDataCrawler
+
+  BronzeCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler (Bronze)"
+    Value: !GetAtt GlueCrawlerExecutionRole.Arn
+
+  SilverDatabaseName:
+    Description: "Name of the Glue Data Catalog database (Silver)"
+    Value: !Ref SilverDataCatalogDatabase
+
+  SilverCrawlerName:
+    Description: "Name of the Glue Crawler (Silver)"
+    Value: !Ref SilverDataCrawler
+
+  SilverCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler (Silver)"
+    Value: !GetAtt GlueCrawlerExecutionRoleSilver.Arn
+
+  GoldDatabaseName:
+    Description: "Name of the Glue Data Catalog database (Gold)"
+    Value: !Ref GoldDataCatalogDatabase
+
+  GoldCrawlerName:
+    Description: "Name of the Glue Crawler (Gold)"
+    Value: !Ref GoldDataCrawler
+
+  GoldCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler (Gold)"
+    Value: !GetAtt GlueCrawlerExecutionRoleGold.Arn

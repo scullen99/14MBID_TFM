@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS Glue Data Catalog with Database, Table, Crawler, and necessary IAM permissions for Gold layer (Consumption)"
+
+Resources:
+  ## IAM Role para Glue Crawler (Gold)
+  GlueCrawlerExecutionRoleGold:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRoleGold"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicyGold
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Consumption"
+        - Key: "Layer"
+          Value: "Gold"
+
+  ## Glue Database en el Data Catalog (Gold)
+  GoldDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_gold_data"
+        Description: "(Parquet Files) Database containing optimized data stored in the Gold layer of the data lake."
+        Parameters:
+          classification: "parquet"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Gold"
+          Purpose: "Consumption"
+
+  ## Glue Crawler para escanear el bucket de datos en Gold (Gold)
+  GoldDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-gold-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRoleGold.Arn
+      DatabaseName: !Ref GoldDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_gold_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Gold"
+        Purpose: "Consumption"
+
+Outputs:
+  GlueDatabaseName:
+    Description: "Name of the Glue Data Catalog database (Gold)"
+    Value: !Ref GoldDataCatalogDatabase
+
+  GlueCrawlerName:
+    Description: "Name of the Glue Crawler (Gold)"
+    Value: !Ref GoldDataCrawler
+
+  GlueCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler (Gold)"
+    Value: !GetAtt GlueCrawlerExecutionRoleGold.Arn

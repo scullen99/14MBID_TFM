@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS Glue Data Catalog with Database, Table, Crawler, and necessary IAM permissions for Silver layer"
+
+Resources:
+  ## IAM Role para Glue Crawler (Silver)
+  GlueCrawlerExecutionRoleSilver:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRoleSilver"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicySilver
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Transformation"
+        - Key: "Layer"
+          Value: "Silver"
+
+  ## Glue Database en el Data Catalog (Silver)
+  SilverDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_silver_data"
+        Description: "(CSV Files) Database containing weather data stored in the Silver layer of the data lake."
+        Parameters:
+          classification: "csv"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Silver"
+          Purpose: "Transformation"
+
+  ## Glue Crawler para escanear el bucket de datos en Silver (Silver)
+  SilverDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-silver-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRoleSilver.Arn
+      DatabaseName: !Ref SilverDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_silver_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Silver"
+        Purpose: "Transformation"
+
+Outputs:
+  GlueDatabaseName:
+    Description: "Name of the Glue Data Catalog database (Silver)"
+    Value: !Ref SilverDataCatalogDatabase
+
+  GlueCrawlerName:
+    Description: "Name of the Glue Crawler (Silver)"
+    Value: !Ref SilverDataCrawler
+
+  GlueCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler (Silver)"
+    Value: !GetAtt GlueCrawlerExecutionRoleSilver.Arn

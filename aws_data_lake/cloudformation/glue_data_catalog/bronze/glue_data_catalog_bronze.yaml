@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS Glue Data Catalog with Database, Table, Crawler, and necessary IAM permissions for Bronze layer"
+
+Resources:
+  ## IAM Role para Glue Crawler (Bronze)
+  GlueCrawlerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueCrawlerExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "glue:CreateTable"
+                  - "glue:GetTable"
+                  - "glue:UpdateTable"
+                  - "glue:CreateDatabase"
+                  - "glue:GetDatabase"
+                Resource: "*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Ingestion"
+        - Key: "Layer"
+          Value: "Bronze"
+
+  ## Glue Database en el Data Catalog (Bronze)
+  BronzeDataCatalogDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "database_bronze_data"
+        Description: "(Json Files) Database containing weather data stored in the Bronze layer of the data lake."
+        Parameters:
+          classification: "json"
+          Environment: "Production"
+          Service: "Glue"
+          Layer: "Bronze"
+          Purpose: "Ingestion"
+
+  ## Glue Crawler para escanear el bucket de datos en Bronze (Bronze)
+  BronzeDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: "datalake-bronze-crawler"
+      Role: !GetAtt GlueCrawlerExecutionRole.Arn
+      DatabaseName: !Ref BronzeDataCatalogDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub "s3://datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/"
+      TablePrefix: "table_bronze_data_"
+      SchemaChangePolicy:
+        UpdateBehavior: "UPDATE_IN_DATABASE"
+        DeleteBehavior: "DELETE_FROM_DATABASE"
+      Schedule:
+        ScheduleExpression: ""
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Crawler"
+        Layer: "Bronze"
+        Purpose: "Ingestion"
+
+Outputs:
+  GlueDatabaseName:
+    Description: "Name of the Glue Data Catalog database"
+    Value: !Ref BronzeDataCatalogDatabase
+
+  GlueCrawlerName:
+    Description: "Name of the Glue Crawler"
+    Value: !Ref BronzeDataCrawler
+
+  GlueCrawlerRoleArn:
+    Description: "ARN of the IAM Role for the Glue Crawler"
+    Value: !GetAtt GlueCrawlerExecutionRole.Arn
