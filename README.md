@@ -27,18 +27,14 @@ AWS_Datalake/
 ├── .git/                        # Control de versiones con Git
 ├── aws_data_lake/
 │   ├── cloudformation/          # Plantillas CloudFormation por servicio
-│   │   ├── eventbridge/         # Configuraciones para EventBridge
-│   │   ├── glue_data_catalog/   # Definición de catálogos de Glue
-│   │   ├── glue_jobs/           # Definición de Glue Jobs
-│   │   ├── lambda/              # Creación de funciones Lambda
-│   │   ├── s3/                  # Buckets de almacenamiento
-│   │   ├── secrets_manager/     # Manejo de secretos
-│   │   └── step_functions/      # Definición de Step Functions
-│   └── resources/               # Recursos usados por el datalake
-│       ├── jsons/               # Archivos JSON de configuración
-│       ├── python_dependencies/ # Librerías Python empaquetadas
-│       ├── python_glue_scripts/ # Scripts de AWS Glue
-│       └── python_lambda_scripts/ # Códigos para funciones Lambda
+│      ├── eventbridge/          # Configuraciones para EventBridge
+│      ├── glue_data_catalog/    # Definición de catálogos de Glue
+│      ├── glue_jobs/            # Definición de Glue Jobs
+│      ├── lambda/               # Creación de funciones Lambda
+│      ├── s3/                   # Buckets de almacenamiento
+│      ├── secrets_manager/      # Manejo de secretos
+│      └── step_functions/       # Definición de Step Functions
+│
 ├── upload_resources_to_bucket/  # Utilidad para cargar recursos a S3
 │   ├── csv/                     # CSVs para procesamiento
 │   ├── jsons/                   # JSONs auxiliares
