@@ -7,7 +7,7 @@ s3_client = boto3.client('s3', region_name='eu-west-1')
 
 # Configuración de rutas
 base_local_path = "/home/sergio/Escritorio/AWS_Datalake/upload_resources_to_bucket"
-bucket_name = "datalake-resources-storage-eu-west-1-533267198508"
+bucket_name = "datalake-resources-storage-eu-west-1"
 
 upload_map = {
     "csv": "csv/",
@@ -39,7 +39,7 @@ def process_folder(local_folder, s3_prefix):
         for file in files:
             local_file_path = os.path.join(root, file)
             relative_path = os.path.relpath(local_file_path, full_local_path)
-            s3_key = os.path.join(s3_prefix, relative_path).replace("\\", "/")  # Por si ejecutas en Windows
+            s3_key = os.path.join(s3_prefix, relative_path).replace("\\", "/")
             upload_file_if_needed(local_file_path, s3_key)
 
 def main():
