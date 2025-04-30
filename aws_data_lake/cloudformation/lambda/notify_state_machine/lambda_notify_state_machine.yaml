@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation Template para la Lambda NotifyStateMachine"
+
+Parameters:
+  SlackWebhookUrl:
+    Type: String
+    Default: "https://hooks.slack.com/services/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"
+    Description: "URL del webhook de Slack"
+
+  LambdaS3Key:
+    Type: String
+    Default: "python_glue_scripts/notify_state_machine.zip"
+    Description: "Ruta del ZIP en S3"
+
+Resources:
+
+  NotifyStateMachineLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "NotifyStateMachine"
+      Runtime: python3.9
+      Handler: notify_state_machine.lambda_handler
+      Role: !GetAtt NotifyStateMachineLambdaRole.Arn
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: !Ref LambdaS3Key
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
+      Tags:
+        - Key: "Project"
+          Value: "StepFunctionsNotifications"
+
+  # IAM Role para la Lambda
+  NotifyStateMachineLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "NotifyStateMachineLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: "LambdaBasicExecution"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+        - PolicyName: "S3ReadAccess"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/${LambdaS3Key}"
+        - PolicyName: "InvokeStepFunctions"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                  - states:GetExecutionHistory
+                  - states:ListExecutions
+                Resource: "*"
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN de la Lambda NotifyStateMachine"
+    Value: !GetAtt NotifyStateMachineLambda.Arn

@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Lambda to send AWS Glue Job notifications to Slack from S3 script"
+
+Resources:
+  GlueJobNotificationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GlueJobNotification
+      Runtime: python3.9
+      Handler: notify_job_status.lambda_handler
+      Timeout: 10
+      MemorySize: 128
+      Role: !GetAtt GlueJobLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/*****/*****/*****"
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: "python_glue_scripts/notify_job_status.zip"
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Owner
+          Value: DevOpsTeam
+        - Key: Environment
+          Value: Production
+        - Key: Service
+          Value: GlueJobNotification
+
+  GlueJobLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GlueJobLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GlueJobNotificationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                Resource: !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/*"
+              - Effect: Allow
+                Action:
+                  - "sns:Publish"
+                Resource:
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:GlueJobNotificationSuccess"
+                  - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:GlueJobNotificationFailure"
+
+  GlueJobNotificationSuccess:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueJobNotificationSuccess
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Environment
+          Value: Production
+
+  GlueJobNotificationFailure:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueJobNotificationFailure
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Environment
+          Value: Production
+
+  LambdaTestEvent:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref GlueJobNotificationLambda
+      Qualifier: "$LATEST"
+      MaximumRetryAttempts: 0
+      DestinationConfig:
+        OnSuccess:
+          Destination: !Ref GlueJobNotificationSuccess
+        OnFailure:
+          Destination: !Ref GlueJobNotificationFailure
+
+Outputs:
+  LambdaFunctionARN:
+    Description: "ARN of the Lambda function"
+    Value: !GetAtt GlueJobNotificationLambda.Arn

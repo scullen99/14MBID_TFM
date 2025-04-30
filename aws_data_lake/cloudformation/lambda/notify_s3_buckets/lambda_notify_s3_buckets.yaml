@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to create an AWS Lambda function for notifying S3 bucket stats on Slack."
+
+Resources:
+  NotifyS3BucketsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: NotifyS3Buckets
+      Runtime: python3.9
+      Handler: notify_s3_buckets.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt NotifyS3BucketsLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          AWS_ACCOUNT_ID: "533267198508"
+          SLACK_WEBHOOK_URL_NOTIFY_S3_BUCKETS: "https://hooks.slack.com/services/*****/*****/*****"
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: "python_glue_scripts/notify_s3_buckets.zip"
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Owner
+          Value: DevOpsTeam
+        - Key: Environment
+          Value: Production
+        - Key: Service
+          Value: NotifyS3Buckets
+
+  NotifyS3BucketsLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: NotifyS3BucketsLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NotifyS3BucketsLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "s3:ListBucket"
+                  - "s3:GetObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/*"
+
+Outputs:
+  LambdaFunctionARN:
+    Description: "ARN of the NotifyS3Buckets Lambda function"
+    Value: !GetAtt NotifyS3BucketsLambda.Arn

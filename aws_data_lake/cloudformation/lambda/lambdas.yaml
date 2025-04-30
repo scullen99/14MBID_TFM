@@ -1,0 +1,289 @@
+# YAML Lambdas
+
+# contacto: sergio.tarrero@student.universidadviu.com
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Unificación de Lambdas de notificación (Glue Job, Crawler, S3, Step Function)"
+
+Parameters:
+  SlackWebhookUrl:
+    Type: String
+    Default: "https://hooks.slack.com/services/*****/*****/*****"
+    Description: "Webhook URL de Slack para NotifyStateMachine"
+
+  LambdaS3Key:
+    Type: String
+    Default: "python_glue_scripts/notify_state_machine.zip"
+    Description: "Ruta en S3 del ZIP de NotifyStateMachine"
+
+Resources:
+
+  ############################################################
+  # Lambda: NotifyStateMachine
+  ############################################################
+  NotifyStateMachineLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "NotifyStateMachine"
+      Runtime: python3.9
+      Handler: notify_state_machine.lambda_handler
+      Role: !GetAtt NotifyStateMachineLambdaRole.Arn
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: !Ref LambdaS3Key
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
+      Tags:
+        - Key: "Project"
+          Value: "StepFunctionsNotifications"
+
+  NotifyStateMachineLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "NotifyStateMachineLambdaRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaBasicExecution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+        - PolicyName: S3ReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/${LambdaS3Key}"
+        - PolicyName: InvokeStepFunctions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:DescribeExecution
+                  - states:GetExecutionHistory
+                  - states:ListExecutions
+                Resource: "*"
+
+  ############################################################
+  # Lambda: NotifyS3Buckets
+  ############################################################
+  NotifyS3BucketsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: NotifyS3Buckets
+      Runtime: python3.9
+      Handler: notify_s3_buckets.lambda_handler
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt NotifyS3BucketsLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          AWS_ACCOUNT_ID: "533267198508"
+          SLACK_WEBHOOK_URL_NOTIFY_S3_BUCKETS: "https://hooks.slack.com/services/*****/*****/*****"
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: "python_glue_scripts/notify_s3_buckets.zip"
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Owner
+          Value: DevOpsTeam
+        - Key: Environment
+          Value: Production
+        - Key: Service
+          Value: NotifyS3Buckets
+
+  NotifyS3BucketsLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: NotifyS3BucketsLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: NotifyS3BucketsLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/*"
+
+  ############################################################
+  # Lambda: GlueJobNotification
+  ############################################################
+  GlueJobNotificationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GlueJobNotification
+      Runtime: python3.9
+      Handler: notify_job_status.lambda_handler
+      Timeout: 10
+      MemorySize: 128
+      Role: !GetAtt GlueJobLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/*****/*****/*****"
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: "python_glue_scripts/notify_job_status.zip"
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Owner
+          Value: DevOpsTeam
+        - Key: Environment
+          Value: Production
+        - Key: Service
+          Value: GlueJobNotification
+
+  GlueJobLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GlueJobLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GlueJobNotificationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:*
+                Resource: "*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/*"
+              - Effect: Allow
+                Action: sns:Publish
+                Resource:
+                  - !Ref GlueJobNotificationSuccess
+                  - !Ref GlueJobNotificationFailure
+
+  GlueJobNotificationSuccess:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueJobNotificationSuccess
+
+  GlueJobNotificationFailure:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueJobNotificationFailure
+
+  ############################################################
+  # Lambda: GlueCrawlerNotification
+  ############################################################
+  GlueCrawlerNotificationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GlueCrawlerNotification
+      Runtime: python3.9
+      Handler: notify_crawler_status.lambda_handler
+      Timeout: 10
+      MemorySize: 128
+      Role: !GetAtt GlueCrawlerLambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/*****/*****/*****"
+      Code:
+        S3Bucket: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+        S3Key: "python_glue_scripts/notify_crawler_status.zip"
+      Tags:
+        - Key: Project
+          Value: DataLake
+        - Key: Owner
+          Value: DevOpsTeam
+        - Key: Environment
+          Value: Production
+        - Key: Service
+          Value: GlueCrawlerNotification
+
+  GlueCrawlerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GlueCrawlerLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: GlueCrawlerNotificationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: logs:*
+                Resource: "*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/*"
+              - Effect: Allow
+                Action: sns:Publish
+                Resource:
+                  - !Ref GlueCrawlerNotificationSuccess
+                  - !Ref GlueCrawlerNotificationFailure
+
+  GlueCrawlerNotificationSuccess:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueCrawlerNotificationSuccess
+
+  GlueCrawlerNotificationFailure:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: GlueCrawlerNotificationFailure
+
+Outputs:
+  NotifyStateMachineLambdaArn:
+    Value: !GetAtt NotifyStateMachineLambda.Arn
+
+  NotifyS3BucketsLambdaArn:
+    Value: !GetAtt NotifyS3BucketsLambda.Arn
+
+  GlueJobNotificationLambdaArn:
+    Value: !GetAtt GlueJobNotificationLambda.Arn
+
+  GlueCrawlerNotificationLambdaArn:
+    Value: !GetAtt GlueCrawlerNotificationLambda.Arn
