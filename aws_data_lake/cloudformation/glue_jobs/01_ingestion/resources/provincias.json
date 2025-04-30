@@ -1,0 +1,252 @@
+[
+  {
+    "parent_code": "16",
+    "code": "01",
+    "label": "Vitoria,Spain"
+  },
+  {
+    "parent_code": "08",
+    "code": "02",
+    "label": "Albacete,Spain"
+  },
+  {
+    "parent_code": "10",
+    "code": "03",
+    "label": "Alicante,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "04",
+    "label": "Almeria,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "05",
+    "label": "Oviedo,Spain"
+  },
+  {
+    "parent_code": "11",
+    "code": "06",
+    "label": "Avila,Spain"
+  },
+  {
+    "parent_code": "04",
+    "code": "07",
+    "label": "Badajoz,Spain"
+  },
+  {
+    "parent_code": "09",
+    "code": "08",
+    "label": "Majorca,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "09",
+    "label": "Barcelona,Spain"
+  },
+  {
+    "parent_code": "11",
+    "code": "10",
+    "label": "Burgos,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "11",
+    "label": "Caceres,Spain"
+  },
+  {
+    "parent_code": "10",
+    "code": "12",
+    "label": "Cadiz,Spain"
+  },
+  {
+    "parent_code": "08",
+    "code": "13",
+    "label": "Santander,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "14",
+    "label": "Castellon,Spain"
+  },
+  {
+    "parent_code": "12",
+    "code": "15",
+    "label": "Poblete,Spain"
+  },
+  {
+    "parent_code": "08",
+    "code": "16",
+    "label": "Cordoba,Spain"
+  },
+  {
+    "parent_code": "09",
+    "code": "17",
+    "label": "Cuenca,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "18",
+    "label": "Girona,Spain"
+  },
+  {
+    "parent_code": "08",
+    "code": "19",
+    "label": "Granada,Spain"
+  },
+  {
+    "parent_code": "16",
+    "code": "20",
+    "label": "Guadalajara,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "21",
+    "label": "Donostia,Spain"
+  },
+  {
+    "parent_code": "02",
+    "code": "22",
+    "label": "Huelva,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "23",
+    "label": "Huesca,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "24",
+    "label": "Jaen,Spain"
+  },
+  {
+    "parent_code": "09",
+    "code": "25",
+    "label": "Coruna,Spain"
+  },
+  {
+    "parent_code": "17",
+    "code": "26",
+    "label": "Rioja,Spain"
+  },
+  {
+    "parent_code": "12",
+    "code": "27",
+    "label": "Tamaraceite,Spain"
+  },
+  {
+    "parent_code": "13",
+    "code": "28",
+    "label": "Leon,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "29",
+    "label": "Lleida,Spain"
+  },
+  {
+    "parent_code": "14",
+    "code": "30",
+    "label": "Lugo,Spain"
+  },
+  {
+    "parent_code": "15",
+    "code": "31",
+    "label": "Madrid,Spain"
+  },
+  {
+    "parent_code": "12",
+    "code": "32",
+    "label": "Malaga,Spain"
+  },
+  {
+    "parent_code": "03",
+    "code": "33",
+    "label": "Murcia,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "34",
+    "label": "Navarra,Spain"
+  },
+  {
+    "parent_code": "05",
+    "code": "35",
+    "label": "Orense,Spain"
+  },
+  {
+    "parent_code": "12",
+    "code": "36",
+    "label": "Palencia,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "37",
+    "label": "Pontevedra,Spain"
+  },
+  {
+    "parent_code": "05",
+    "code": "38",
+    "label": "Salamanca,Spain"
+  },
+  {
+    "parent_code": "06",
+    "code": "39",
+    "label": "Aguamansa,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "40",
+    "label": "Segovia,Spain"
+  },
+  {
+    "parent_code": "01",
+    "code": "41",
+    "label": "Sevilla,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "42",
+    "label": "Soria,Spain"
+  },
+  {
+    "parent_code": "09",
+    "code": "43",
+    "label": "Tarragona,Spain"
+  },
+  {
+    "parent_code": "02",
+    "code": "44",
+    "label": "Teruel,Spain"
+  },
+  {
+    "parent_code": "08",
+    "code": "45",
+    "label": "Toledo,Spain"
+  },
+  {
+    "parent_code": "10",
+    "code": "46",
+    "label": "Valencia,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "47",
+    "label": "Valladolid,Spain"
+  },
+  {
+    "parent_code": "16",
+    "code": "48",
+    "label": "Bilbao,Spain"
+  },
+  {
+    "parent_code": "07",
+    "code": "49",
+    "label": "Zamora,Spain"
+  },
+  {
+    "parent_code": "02",
+    "code": "50",
+    "label": "Zaragoza,Spain"
+  }
+]

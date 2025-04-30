@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS Glue Python Shell Job with permissions for Data Ingestion in the Bronze Layer"
+
+Resources:
+  ## IAM Role para el Glue Job (Ingestion)
+  GlueJobExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueJobExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueJobS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_logs/*"
+                  - !Sub "arn:aws:s3:::datalake-logs-storage-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Ingestion"
+        - Key: "Layer"
+          Value: "Bronze"
+
+  ## Glue Job (Ingestion)
+  GlueJobIngestion:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: "datalake-glue-job-ingestion"
+      Role: !GetAtt GlueJobExecutionRole.Arn
+      GlueVersion: "5.0"
+      Command:
+        Name: "pythonshell"
+        ScriptLocation: !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/ingestion_glue_job.py"
+        PythonVersion: "3.9"
+      DefaultArguments:
+        "--TempDir": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_job_logs/"
+        "--enable-metrics": "true"
+        "--job-language": "python"
+      MaxCapacity: 1.0
+      Timeout: 60
+      MaxRetries: 0
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Ingestion"
+        Layer: "Bronze"
+
+Outputs:
+  GlueJobName:
+    Description: "Name of the AWS Glue Job"
+    Value: !Ref GlueJobIngestion
+
+  GlueJobRoleArn:
+    Description: "ARN of the IAM Role for the Glue Job"
+    Value: !GetAtt GlueJobExecutionRole.Arn

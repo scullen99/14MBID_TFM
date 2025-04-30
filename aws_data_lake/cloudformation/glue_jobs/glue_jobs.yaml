@@ -1,0 +1,355 @@
+# YAML GLue Jobs
+
+# contacto: sergio.tarrero@student.universidadviu.com
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS Glue Python Shell Jobs for Data Lake"
+
+Resources:
+  ## IAM Role para el Glue Job (Ingestion)
+  GlueJobExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueJobExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueJobS3AccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_logs/*"
+                  - !Sub "arn:aws:s3:::datalake-logs-storage-${AWS::Region}-${AWS::AccountId}/*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Ingestion"
+        - Key: "Layer"
+          Value: "Bronze"
+
+  ## Glue Job (Ingestion)
+  GlueJobIngestion:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: "datalake-glue-job-ingestion"
+      Role: !GetAtt GlueJobExecutionRole.Arn
+      GlueVersion: "5.0"
+      Command:
+        Name: "pythonshell"
+        ScriptLocation: !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/ingestion_glue_job.py"
+        PythonVersion: "3.9"
+      DefaultArguments:
+        "--TempDir": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_job_logs/"
+        "--enable-metrics": "true"
+        "--job-language": "python"
+      MaxCapacity: 1.0
+      Timeout: 900
+      MaxRetries: 2
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Ingestion"
+        Layer: "Bronze"
+
+  ## IAM Role para el Glue Job (Transformation)
+  GlueJobExecutionRoleTransformation:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueJobExecutionRoleTransformation"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueJobS3AccessPolicySilver
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Permiso de lectura en el bucket Bronze
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+              
+              # Permiso de lectura/escritura en el bucket Silver
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+
+              # Permiso de lectura en el bucket de recursos (para cargar los JSON de transformación)
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/*"
+
+              # Permiso de escritura en el bucket de logs
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-logs-storage-${AWS::Region}-${AWS::AccountId}/*"
+
+              # Permiso para leer el script de Glue desde S3
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/*"
+
+              # Permiso para escribir logs en CloudWatch
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+              # Permiso para acceder a Secrets Manager (obtener nombres de buckets)
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Transformation"
+        - Key: "Layer"
+          Value: "Silver"
+
+  ## Glue Job (Transformation)
+  GlueJobTransformation:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: "datalake-glue-job-transformation"
+      Role: !GetAtt GlueJobExecutionRoleTransformation.Arn
+      GlueVersion: "5.0"
+      Command:
+        Name: "pythonshell"
+        ScriptLocation: !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/transformation_glue_job.py"
+        PythonVersion: "3.9"
+      DefaultArguments:
+        "--TempDir": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_job_logs/"
+        "--enable-metrics": "true"
+        "--job-language": "python"
+        "--drop-columns-path": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/drop_columns.json"
+        "--map-hours-path": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/map_hours.json"
+        "--rename-cities-path": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/rename_cities.json"
+        "--rename-columns-path": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/rename_columns.json"
+      MaxCapacity: 1.0
+      Timeout: 300
+      MaxRetries: 2
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Transformation"
+        Layer: "Silver"
+
+  ## IAM Role para el Glue Job (Consumption)
+  GlueJobExecutionRoleConsumption:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "GlueJobExecutionRoleConsumption"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueJobS3AccessPolicyGold
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Permiso de lectura en el bucket Silver
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}/*"
+
+              # Permiso de escritura en el bucket Gold
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}/*"
+
+              # Permiso de lectura en el bucket de recursos (para cargar configuraciones)
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/jsons/*"
+
+              # Permiso de escritura en el bucket de logs
+              - Effect: Allow
+                Action:
+                  - "s3:PutObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-logs-storage-${AWS::Region}-${AWS::AccountId}/*"
+
+              # Permiso para leer el script de Glue desde S3
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:HeadObject"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/*"
+
+              # Permiso para escribir logs en CloudWatch
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+              # Permiso para acceder a Secrets Manager (obtener nombres de buckets)
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                  - "secretsmanager:DescribeSecret"
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:*"
+
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Service"
+          Value: "Glue"
+        - Key: "Component"
+          Value: "Consumption"
+        - Key: "Layer"
+          Value: "Gold"
+
+  ## Glue Job (Consumption)
+  GlueJobConsumption:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: "datalake-glue-job-consumption"
+      Role: !GetAtt GlueJobExecutionRoleConsumption.Arn
+      GlueVersion: "5.0"
+      Command:
+        Name: "pythonshell"
+        ScriptLocation: !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/python_glue_scripts/consumption_glue_job.py"
+        PythonVersion: "3.9"
+      DefaultArguments:
+        "--TempDir": !Sub "s3://datalake-resources-storage-${AWS::Region}-${AWS::AccountId}/glue_job_logs/"
+        "--enable-metrics": "true"
+        "--job-language": "python"
+      MaxCapacity: 1.0
+      Timeout: 300
+      MaxRetries: 2
+      Tags:
+        Environment: "Production"
+        Service: "Glue"
+        Component: "Consumption"
+        Layer: "Gold"
+
+Outputs:
+  GlueJobIngestion:
+    Description: "Name of the AWS Glue Job"
+    Value: !Ref GlueJobIngestion
+
+  GlueJobIngestionArn:
+    Description: "ARN of the IAM Role for the Glue Job"
+    Value: !GetAtt GlueJobExecutionRole.Arn
+
+  GlueJobExecutionRoleTransformation:
+    Description: "Name of the AWS Glue Job (Transformation)"
+    Value: !Ref GlueJobTransformation
+
+  GlueJobExecutionRoleTransformationArn:
+    Description: "ARN of the IAM Role for the Glue Job (Transformation)"
+    Value: !GetAtt GlueJobExecutionRoleTransformation.Arn
+
+  GlueJobExecutionRoleConsumption:
+    Description: "Name of the AWS Glue Job (Consumption)"
+    Value: !Ref GlueJobConsumption
+
+  GlueJobExecutionRoleConsumptionArn:
+    Description: "ARN of the IAM Role for the Glue Job (Consumption)"
+    Value: !GetAtt GlueJobExecutionRoleConsumption.Arn
