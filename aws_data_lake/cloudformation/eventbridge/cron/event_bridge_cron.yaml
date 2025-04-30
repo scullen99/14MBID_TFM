@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EventBridge Rule to trigger StateMachineRunJobs every day at 9:00 AM Madrid time (08:00 UTC) and log events to CloudWatch.
+
+Resources:
+  # Regla de EventBridge para ejecutar la Step Function todos los días a las 08:00 UTC (9:00 en Madrid)
+  ScheduledEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: "DailyTriggerStateMachineRunJobs"
+      Description: "Triggers StateMachineRunJobs every day at XX:XX AM Madrid time (XX:XX UTC) and logs to CloudWatch."
+      ScheduleExpression: "cron(05 11 * * ? *)"  # Ejecuta todos los días a las 08:00 UTC
+      State: ENABLED
+      Targets:
+        # Target 1: Ejecutar la Step Function
+        - Arn: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StateMachineRunJobs"
+          Id: "StateMachineRunJobsTarget"
+          RoleArn: !GetAtt ScheduledEventBridgeRole.Arn
+
+        # Target 2: Enviar logs a CloudWatch
+        - Arn: !GetAtt EventBridgeLogGroup.Arn
+          Id: "CloudWatchLogsTarget"
+
+  # Grupo de logs en CloudWatch para almacenar eventos de EventBridge
+  EventBridgeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/aws/events/ScheduledStateMachineRunJobs"
+
+  # Rol IAM para que EventBridge pueda ejecutar la Step Function y escribir en CloudWatch
+  ScheduledEventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ScheduledEventBridgeRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: InvokeStepFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "states:StartExecution"
+                Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StateMachineRunJobs"
+
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !GetAtt EventBridgeLogGroup.Arn
+
+Outputs:
+  ScheduledRuleArn:
+    Description: "ARN of the scheduled EventBridge rule"
+    Value: !GetAtt ScheduledEventBridgeRule.Arn
+  CloudWatchLogGroupArn:
+    Description: "ARN of the CloudWatch Log Group"
+    Value: !GetAtt EventBridgeLogGroup.Arn
+  IAMRoleArn:
+    Description: "ARN of the IAM role for EventBridge"
+    Value: !GetAtt ScheduledEventBridgeRole.Arn

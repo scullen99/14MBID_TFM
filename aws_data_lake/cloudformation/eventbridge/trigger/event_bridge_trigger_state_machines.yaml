@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EventBridge Rule to trigger StateMachineRunCrawlers when StateMachineRunJobs succeeds and log events to CloudWatch.
+
+Resources:
+  EventBridgeRuleStateMachine:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: TriggerStateMachineRunCrawlers
+      Description: "Triggers StateMachineRunCrawlers when StateMachineRunJobs finishes successfully and logs events to CloudWatch."
+      EventPattern:
+        source:
+          - "aws.states"
+        detail-type:
+          - "Step Functions Execution Status Change"
+        detail:
+          stateMachineArn:
+            - !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StateMachineRunJobs"
+          status:
+            - "SUCCEEDED"
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StateMachineRunCrawlers"
+          Id: "TargetStateMachineRunCrawlers"
+          RoleArn: !GetAtt EventBridgeInvokeStepFunctionRole.Arn
+
+        - Arn: !GetAtt EventBridgeLogGroup.Arn
+          Id: "CloudWatchLogsTarget"
+
+  EventBridgeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/aws/events/TriggerStateMachineRunCrawlers"
+
+  EventBridgeInvokeStepFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EventBridgeInvokeStepFunctionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "events.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+        - PolicyName: InvokeStepFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "states:StartExecution"
+                Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:StateMachineRunCrawlers"
+
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: !GetAtt EventBridgeLogGroup.Arn
+
+Outputs:
+  EventBridgeRuleArn:
+    Description: "ARN of the EventBridge rule"
+    Value: !GetAtt EventBridgeRuleStateMachine.Arn
+  CloudWatchLogGroupArn:
+    Description: "ARN of the CloudWatch Log Group"
+    Value: !GetAtt EventBridgeLogGroup.Arn
+  IAMRoleArn:
+    Description: "ARN of the IAM role for EventBridge"
+    Value: !GetAtt EventBridgeInvokeStepFunctionRole.Arn
