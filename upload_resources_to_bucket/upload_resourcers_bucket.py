@@ -2,10 +2,8 @@ import boto3
 import os
 from botocore.exceptions import ClientError
 
-# Configura tu región si no la tienes por defecto en ~/.aws/config
 s3_client = boto3.client('s3', region_name='eu-west-1')
 
-# Configuración de rutas
 base_local_path = "/home/sergio/Escritorio/AWS_Datalake/upload_resources_to_bucket"
 bucket_name = "datalake-resources-storage-eu-west-1"
 
