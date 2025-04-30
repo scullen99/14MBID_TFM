@@ -1,0 +1,291 @@
+Resources:
+  StateMachineRunJobs2:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      Definition:
+        Comment: State Machine para ejecutar tres Glue Jobs y notificar en Slack
+        StartAt: SM - Notify Start
+        States:
+          SM - Notify Start:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ac1b82ba}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: RUNNING
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: SM - Notify S3 Buckets
+          SM - Notify S3 Buckets:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ea6b97a1}
+              Payload.$: $
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: Run Job Ingestion
+          Check State Job Consumption:
+            Next: Evaluate Consumption Result
+            Parameters:
+              JobName: datalake-glue-job-consumption
+              RunId.$: $.GlueJobConsumptionOutput.JobRunId
+            Resource: arn:aws:states:::aws-sdk:glue:getJobRun
+            ResultPath: $.JobConsumptionStatus
+            Type: Task
+          Check State Job Ingestion:
+            Next: Evaluate Ingestion Result
+            Parameters:
+              JobName: datalake-glue-job-ingestion
+              RunId.$: $.GlueJobOutput.JobRunId
+            Resource: arn:aws:states:::aws-sdk:glue:getJobRun
+            ResultPath: $.JobStatus
+            Type: Task
+          Check State Job Transformation:
+            Next: Evaluate Transformation Result
+            Parameters:
+              JobName: datalake-glue-job-transformation
+              RunId.$: $.GlueJobTransformationOutput.JobRunId
+            Resource: arn:aws:states:::aws-sdk:glue:getJobRun
+            ResultPath: $.JobTransformationStatus
+            Type: Task
+          Run Job Consumption:
+            Next: Wait Consumption
+            Parameters:
+              JobName: ${gluestartJobRun_JobName_2dcd7919}
+            Resource: arn:aws:states:::glue:startJobRun
+            ResultPath: $.GlueJobConsumptionOutput
+            Type: Task
+          Run Job Ingestion:
+            Next: Wait Ingestion
+            Parameters:
+              JobName: ${gluestartJobRun_JobName_469e618d}
+            Resource: arn:aws:states:::glue:startJobRun
+            ResultPath: $.GlueJobOutput
+            Type: Task
+          Run Job Transformation:
+            Next: Wait Transformation
+            Parameters:
+              JobName: ${gluestartJobRun_JobName_89483a8e}
+            Resource: arn:aws:states:::glue:startJobRun
+            ResultPath: $.GlueJobTransformationOutput
+            Type: Task
+          Wait Consumption:
+            Next: Check State Job Consumption
+            Seconds: 15
+            Type: Wait
+          Wait Ingestion:
+            Next: Check State Job Ingestion
+            Seconds: 15
+            Type: Wait
+          Wait Transformation:
+            Next: Check State Job Transformation
+            Seconds: 15
+            Type: Wait
+          Evaluate Consumption Result:
+            Choices:
+              - Next: Notificar Consumption Success
+                StringEquals: SUCCEEDED
+                Variable: $.JobConsumptionStatus.JobRun.JobRunState
+              - Next: SM - Notify Consumption Failure
+                Variable: $.JobConsumptionStatus.JobRun.JobRunState
+                StringEquals: FAILED
+              - Next: SM - Notify Consumption Failure
+                Variable: $.JobConsumptionStatus.JobRun.JobRunState
+                StringEquals: STOPPED
+            Type: Choice
+            Default: Wait Consumption
+          Evaluate Ingestion Result:
+            Choices:
+              - Next: Notificar Ingestion Success
+                StringEquals: SUCCEEDED
+                Variable: $.JobStatus.JobRun.JobRunState
+              - Next: SM - Notify Ingestion Failure
+                StringEquals: FAILED
+                Variable: $.JobStatus.JobRun.JobRunState
+              - Next: SM - Notify Ingestion Failure
+                StringEquals: STOPPED
+                Variable: $.JobStatus.JobRun.JobRunState
+            Default: Wait Ingestion
+            Type: Choice
+          Evaluate Transformation Result:
+            Choices:
+              - Next: Notify Transformation Success
+                StringEquals: SUCCEEDED
+                Variable: $.JobTransformationStatus.JobRun.JobRunState
+              - Next: SM - Notify Transformation Failure
+                StringEquals: FAILED
+                Variable: $.JobTransformationStatus.JobRun.JobRunState
+              - Next: SM - Notify Transformation Failure
+                StringEquals: STOPPED
+                Variable: $.JobTransformationStatus.JobRun.JobRunState
+            Default: Wait Transformation
+            Type: Choice
+          SM - Notify Consumption Failure:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ac1b82ba}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: FAILED
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: Fail Consumption
+          Fail Consumption:
+            Type: Fail
+          SM - Notify Ingestion Failure:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ac1b82ba}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: FAILED
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: Fail Ingestion
+          Fail Ingestion:
+            Type: Fail
+          SM - Notify Transformation Failure:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ac1b82ba}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: FAILED
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: Fail Transformation
+          Fail Transformation:
+            Type: Fail
+          Notificar Consumption Success:
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_781f1195}
+              Payload:
+                JobName: datalake-glue-job-consumption
+                Status: SUCCEEDED
+            Resource: arn:aws:states:::lambda:invoke
+            Type: Task
+            Next: SM - Notify Succeeded
+          SM - Notify Succeeded:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_ac1b82ba}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: SUCCEEDED
+            Retry:
+              - ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Next: Success
+          Success:
+            Type: Succeed
+          Notificar Ingestion Success:
+            Next: Run Job Transformation
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_781f1195}
+              Payload:
+                JobName: datalake-glue-job-ingestion
+                Status: SUCCEEDED
+            Resource: arn:aws:states:::lambda:invoke
+            Type: Task
+          Notify Transformation Success:
+            Next: Run Job Consumption
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_781f1195}
+              Payload:
+                JobName: datalake-glue-job-transformation
+                Status: SUCCEEDED
+            Resource: arn:aws:states:::lambda:invoke
+            Type: Task
+      DefinitionSubstitutions:
+        lambdainvoke_FunctionName_ac1b82ba: arn:aws:lambda:eu-west-1:533267198508:function:NotifyStateMachine
+        lambdainvoke_FunctionName_ea6b97a1: arn:aws:lambda:eu-west-1:533267198508:function:NotifyS3Buckets
+        gluestartJobRun_JobName_2dcd7919: datalake-glue-job-consumption
+        gluestartJobRun_JobName_469e618d: datalake-glue-job-ingestion
+        gluestartJobRun_JobName_89483a8e: datalake-glue-job-transformation
+        lambdainvoke_FunctionName_781f1195: GlueJobNotification
+      RoleArn: >-
+        arn:aws:iam::533267198508:role/StepFunctions_IAM_ROLE_WIP_RunJobs035b7159
+      StateMachineName: StateMachineRunJobs2
+      StateMachineType: STANDARD
+      EncryptionConfiguration:
+        Type: AWS_OWNED_KEY
+      LoggingConfiguration:
+        Level: 'OFF'
+        IncludeExecutionData: false
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: ''

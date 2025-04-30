@@ -1,0 +1,272 @@
+Resources:
+  StateMachineRunCrawlers2:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      Definition:
+        Comment: >-
+          Parallel execution of Glue Crawlers with status monitoring and Slack
+          notifications
+        StartAt: Start Notify State Machine
+        States:
+          Run All Crawlers:
+            Branches:
+              - StartAt: Start Bronze Crawler
+                States:
+                  Check Bronze Crawler Status:
+                    Next: Evaluate Bronze Status
+                    Parameters:
+                      Name: datalake-bronze-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:getCrawler
+                    ResultPath: $.CrawlerStatus
+                    Type: Task
+                  Evaluate Bronze Status:
+                    Choices:
+                      - Next: Notify Bronze Success
+                        StringEquals: READY
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Bronze Failure
+                        StringEquals: FAILED
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Bronze Failure
+                        StringEquals: STOPPED
+                        Variable: $.CrawlerStatus.Crawler.State
+                    Default: Wait For Bronze Completion
+                    Type: Choice
+                  Fail Bronze Crawler:
+                    Type: Fail
+                  Notify Bronze Success:
+                    End: true
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_d6efc738}
+                      Payload:
+                        CrawlerName: datalake-bronze-crawler
+                        Status: SUCCEEDED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Type: Task
+                  SM - Notify Bronze Failure:
+                    Next: Fail Bronze Crawler
+                    OutputPath: $.Payload
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_0419e1cf}
+                      Payload:
+                        execution_arn.$: $$.Execution.Id
+                        execution_name.$: $$.Execution.Name
+                        start_time.$: $$.Execution.StartTime
+                        state_machine_name.$: $$.StateMachine.Name
+                        status: FAILED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Retry:
+                      - BackoffRate: 2
+                        ErrorEquals:
+                          - Lambda.ServiceException
+                          - Lambda.AWSLambdaException
+                          - Lambda.SdkClientException
+                          - Lambda.TooManyRequestsException
+                        IntervalSeconds: 1
+                        JitterStrategy: FULL
+                        MaxAttempts: 3
+                    Type: Task
+                  Start Bronze Crawler:
+                    Next: Wait For Bronze Completion
+                    Parameters:
+                      Name: datalake-bronze-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:startCrawler
+                    Type: Task
+                  Wait For Bronze Completion:
+                    Next: Check Bronze Crawler Status
+                    Seconds: 15
+                    Type: Wait
+              - StartAt: Start Silver Crawler
+                States:
+                  Check Silver Crawler Status:
+                    Next: Evaluate Silver Status
+                    Parameters:
+                      Name: datalake-silver-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:getCrawler
+                    ResultPath: $.CrawlerStatus
+                    Type: Task
+                  Evaluate Silver Status:
+                    Choices:
+                      - Next: Notify Silver Success
+                        StringEquals: READY
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Silver Failure
+                        StringEquals: FAILED
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Silver Failure
+                        StringEquals: STOPPED
+                        Variable: $.CrawlerStatus.Crawler.State
+                    Default: Wait For Silver Completion
+                    Type: Choice
+                  Fail Silver Crawler:
+                    Type: Fail
+                  Notify Silver Success:
+                    End: true
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_d6efc738}
+                      Payload:
+                        CrawlerName: datalake-silver-crawler
+                        Status: SUCCEEDED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Type: Task
+                  SM - Notify Silver Failure:
+                    Next: Fail Silver Crawler
+                    OutputPath: $.Payload
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_0419e1cf}
+                      Payload:
+                        execution_arn.$: $$.Execution.Id
+                        execution_name.$: $$.Execution.Name
+                        start_time.$: $$.Execution.StartTime
+                        state_machine_name.$: $$.StateMachine.Name
+                        status: FAILED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Retry:
+                      - BackoffRate: 2
+                        ErrorEquals:
+                          - Lambda.ServiceException
+                          - Lambda.AWSLambdaException
+                          - Lambda.SdkClientException
+                          - Lambda.TooManyRequestsException
+                        IntervalSeconds: 1
+                        JitterStrategy: FULL
+                        MaxAttempts: 3
+                    Type: Task
+                  Start Silver Crawler:
+                    Next: Wait For Silver Completion
+                    Parameters:
+                      Name: datalake-silver-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:startCrawler
+                    Type: Task
+                  Wait For Silver Completion:
+                    Next: Check Silver Crawler Status
+                    Seconds: 15
+                    Type: Wait
+              - StartAt: Start Gold Crawler
+                States:
+                  Check Gold Crawler Status:
+                    Next: Evaluate Gold Status
+                    Parameters:
+                      Name: datalake-gold-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:getCrawler
+                    ResultPath: $.CrawlerStatus
+                    Type: Task
+                  Evaluate Gold Status:
+                    Choices:
+                      - Next: Notify Gold Success
+                        StringEquals: READY
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Gold Failure
+                        StringEquals: FAILED
+                        Variable: $.CrawlerStatus.Crawler.State
+                      - Next: SM - Notify Gold Failure
+                        StringEquals: STOPPED
+                        Variable: $.CrawlerStatus.Crawler.State
+                    Default: Wait For Gold Completion
+                    Type: Choice
+                  Fail Gold Crawler:
+                    Type: Fail
+                  Notify Gold Success:
+                    End: true
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_d6efc738}
+                      Payload:
+                        CrawlerName: datalake-gold-crawler
+                        Status: SUCCEEDED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Type: Task
+                  SM - Notify Gold Failure:
+                    Next: Fail Gold Crawler
+                    OutputPath: $.Payload
+                    Parameters:
+                      FunctionName: ${lambdainvoke_FunctionName_0419e1cf}
+                      Payload:
+                        execution_arn.$: $$.Execution.Id
+                        execution_name.$: $$.Execution.Name
+                        start_time.$: $$.Execution.StartTime
+                        state_machine_name.$: $$.StateMachine.Name
+                        status: FAILED
+                    Resource: arn:aws:states:::lambda:invoke
+                    Retry:
+                      - BackoffRate: 2
+                        ErrorEquals:
+                          - Lambda.ServiceException
+                          - Lambda.AWSLambdaException
+                          - Lambda.SdkClientException
+                          - Lambda.TooManyRequestsException
+                        IntervalSeconds: 1
+                        JitterStrategy: FULL
+                        MaxAttempts: 3
+                    Type: Task
+                  Start Gold Crawler:
+                    Next: Wait For Gold Completion
+                    Parameters:
+                      Name: datalake-gold-crawler
+                    Resource: arn:aws:states:::aws-sdk:glue:startCrawler
+                    Type: Task
+                  Wait For Gold Completion:
+                    Next: Check Gold Crawler Status
+                    Seconds: 15
+                    Type: Wait
+            Next: Succeeded Notify State Machine
+            Type: Parallel
+          Start Notify State Machine:
+            Next: Run All Crawlers
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_0419e1cf}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: RUNNING
+            Resource: arn:aws:states:::lambda:invoke
+            Retry:
+              - BackoffRate: 2
+                ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                JitterStrategy: FULL
+                MaxAttempts: 3
+            Type: Task
+          Succeeded Notify State Machine:
+            Next: Success
+            OutputPath: $.Payload
+            Parameters:
+              FunctionName: ${lambdainvoke_FunctionName_0419e1cf}
+              Payload:
+                execution_arn.$: $$.Execution.Id
+                execution_name.$: $$.Execution.Name
+                start_time.$: $$.Execution.StartTime
+                state_machine_name.$: $$.StateMachine.Name
+                status: SUCCEEDED
+            Resource: arn:aws:states:::lambda:invoke
+            Retry:
+              - BackoffRate: 2
+                ErrorEquals:
+                  - Lambda.ServiceException
+                  - Lambda.AWSLambdaException
+                  - Lambda.SdkClientException
+                  - Lambda.TooManyRequestsException
+                IntervalSeconds: 1
+                JitterStrategy: FULL
+                MaxAttempts: 3
+            Type: Task
+          Success:
+            Type: Succeed
+      DefinitionSubstitutions:
+        lambdainvoke_FunctionName_d6efc738: GlueCrawlerNotification
+        lambdainvoke_FunctionName_0419e1cf: arn:aws:lambda:eu-west-1:533267198508:function:NotifyStateMachine
+      RoleArn: >-
+        arn:aws:iam::533267198508:role/StepFunctions_IAM_ROLE_RunCrawlers430bf475
+      StateMachineName: StateMachineRunCrawlers2
+      StateMachineType: STANDARD
+      EncryptionConfiguration:
+        Type: AWS_OWNED_KEY
+      LoggingConfiguration:
+        Level: 'OFF'
+        IncludeExecutionData: false
