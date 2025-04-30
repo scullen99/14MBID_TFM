@@ -49,22 +49,18 @@ AWS_Datalake/
 
 ## Descripción de Carpetas y Archivos Principales
 
-### 1. `.git/`
-
-Contiene la configuración y objetos de Git para el control de versiones del proyecto.
-
-### 2. `aws_data_lake/`
+### 1. `aws_data_lake/`
 
 Carpeta principal que estructura todo el desarrollo de infraestructura como código y recursos.
 
 - **`cloudformation/`**: Archivos YAML que definen todos los recursos de AWS.
 - **`resources/`**: Ficheros de apoyo (JSONs, scripts de Glue y Lambda, dependencias Python).
 
-### 3. `upload_resources_to_bucket/`
+### 2. `upload_resources_to_bucket/`
 
 Scripts auxiliares para subir recursos al bucket de S3.
 
-### 4. Archivo destacado
+### 3. Archivo destacado
 
 - `upload_resourcers_bucket.py`: Script que automatiza la carga de recursos a S3.
 
