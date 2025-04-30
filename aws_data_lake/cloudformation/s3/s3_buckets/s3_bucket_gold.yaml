@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "S3 Bucket for Gold layer consumption in the Data Lake (Query Optimization)"
+
+Resources:
+  GoldConsumptionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        !Sub "datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 730
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 60
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Gold"
+        - Key: "Purpose"
+          Value: "Data Consumption"
+        - Key: "Component"
+          Value: "Query Optimization"
+
+Outputs:
+  GoldConsumptionBucketName:
+    Description: "Name of the Gold layer consumption bucket"
+    Value: !Ref GoldConsumptionBucket
+    Export:
+      Name: GoldConsumptionBucketName

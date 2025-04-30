@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "S3 Buckets for Bronze layer ingestion and backup in the Data Lake"
+
+Resources:
+  ## BUCKET PRINCIPAL (INGESTIÓN - BRONZE)
+  BronzeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        !Sub "datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      ReplicationConfiguration:
+        Role: !GetAtt S3ReplicationRole.Arn
+        Rules:
+          - Id: ReplicateToBackup
+            Status: Enabled
+            Priority: 1
+            DeleteMarkerReplication:
+              Status: Disabled
+            Filter:
+              Prefix: ""
+            Destination:
+              Bucket: !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+              StorageClass: STANDARD
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 365
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Bronze"
+        - Key: "Purpose"
+          Value: "Ingestion"
+
+  ## 🏗️ BUCKET DE BACKUP (BRONZE)
+  BronzeBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        !Sub "datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 730
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Bronze-Backup"
+        - Key: "Purpose"
+          Value: "Replication"
+
+  ## ROL IAM PARA REPLICACIÓN S3 DE BRONZE A BRONZE-BACKUP
+  ## arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId} -> datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}
+  S3ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "s3-replication-role-${AWS::Region}-${AWS::AccountId}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: S3ReplicationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:ReplicateObject"
+                  - "s3:ReplicateDelete"
+                  - "s3:ReplicateTags"
+                  - "s3:GetObjectVersionForReplication"
+                  - "s3:GetObjectVersionAcl"
+                  - "s3:GetObjectVersionTagging"
+                  - "s3:ListBucket"
+                  - "s3:ReplicatePut"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}/*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Role"
+          Value: "S3Replication"
+        - Key: "Purpose"
+          Value: "IAM for S3 Replication"
+
+Outputs:
+  BronzeBucketName:
+    Description: "Name of the Bronze layer ingestion bucket"
+    Value: !Ref BronzeBucket
+
+  BronzeBackupBucketName:
+    Description: "Name of the Bronze layer backup bucket"
+    Value: !Ref BronzeBackupBucket

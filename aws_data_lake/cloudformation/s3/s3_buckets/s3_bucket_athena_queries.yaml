@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "S3 Bucket for storing AWS Athena query results"
+
+Resources:
+  AthenaQueriesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        !Sub "datalake-athena-queries-results-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Purpose"
+          Value: "Athena-Query-Results"
+
+Outputs:
+  AthenaQueriesBucketName:
+    Description: "Name of the S3 bucket for AWS Athena query results"
+    Value: !Ref AthenaQueriesBucket

@@ -1,0 +1,286 @@
+# YAML S3 Buckets
+
+# contacto: sergio.tarrero@student.universidadviu.com
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Unificación de todos los buckets S3 utilizados en el Data Lake"
+
+Resources:
+
+  ## BRONZE INGESTION
+  BronzeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      ReplicationConfiguration:
+        Role: !GetAtt S3ReplicationRole.Arn
+        Rules:
+          - Id: ReplicateToBackup
+            Status: Enabled
+            Priority: 1
+            DeleteMarkerReplication:
+              Status: Disabled
+            Filter:
+              Prefix: ""
+            Destination:
+              Bucket: !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+              StorageClass: STANDARD
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 365
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Bronze"
+        - Key: "Purpose"
+          Value: "Ingestion"
+
+  BronzeBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 730
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Bronze-Backup"
+        - Key: "Purpose"
+          Value: "Replication"
+
+  S3ReplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "s3-replication-role-${AWS::Region}-${AWS::AccountId}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: S3ReplicationPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:ReplicateObject"
+                  - "s3:ReplicateDelete"
+                  - "s3:ReplicateTags"
+                  - "s3:GetObjectVersionForReplication"
+                  - "s3:GetObjectVersionAcl"
+                  - "s3:GetObjectVersionTagging"
+                  - "s3:ListBucket"
+                  - "s3:ReplicatePut"
+                Resource:
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-ingest-${AWS::Region}-${AWS::AccountId}/*"
+                  - !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::datalake-bronze-backup-${AWS::Region}-${AWS::AccountId}/*"
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Role"
+          Value: "S3Replication"
+        - Key: "Purpose"
+          Value: "IAM for S3 Replication"
+
+  ## SILVER
+  SilverTransformationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-silver-transformation-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 365
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Silver"
+        - Key: "Purpose"
+          Value: "Data Transformation"
+        - Key: "Component"
+          Value: "Processing"
+
+  ## GOLD
+  GoldConsumptionBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-gold-consumption-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 730
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 60
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Layer"
+          Value: "Gold"
+        - Key: "Purpose"
+          Value: "Data Consumption"
+        - Key: "Component"
+          Value: "Query Optimization"
+
+  ## RESOURCES
+  ResourcesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-resources-storage-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 180
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Purpose"
+          Value: "Glue-Lambda-Scripts-JSON-YAML"
+
+  ## LOGS
+  LogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-logs-storage-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Purpose"
+          Value: "Logs-Results"
+
+  ## ATHENA
+  AthenaQueriesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "datalake-athena-queries-results-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirationRule
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: InfrequentAccessRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: "Environment"
+          Value: "Production"
+        - Key: "Purpose"
+          Value: "Athena-Query-Results"
+
+Outputs:
+  BronzeBucketName:
+    Description: "Name of the Bronze ingestion bucket"
+    Value: !Ref BronzeBucket
+
+  BronzeBackupBucketName:
+    Description: "Name of the Bronze backup bucket"
+    Value: !Ref BronzeBackupBucket
+
+  SilverTransformationBucketName:
+    Description: "Name of the Silver transformation bucket"
+    Value: !Ref SilverTransformationBucket
+
+  GoldConsumptionBucketName:
+    Description: "Name of the Gold consumption bucket"
+    Value: !Ref GoldConsumptionBucket
+
+  ResourcesBucketName:
+    Description: "Name of the Resources bucket"
+    Value: !Ref ResourcesBucket
+
+  LogsBucketName:
+    Description: "Name of the Logs bucket"
+    Value: !Ref LogsBucket
+
+  AthenaQueriesBucketName:
+    Description: "Name of the Athena queries results bucket"
+    Value: !Ref AthenaQueriesBucket
