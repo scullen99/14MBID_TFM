@@ -24,18 +24,20 @@ A continuación, se resumen los principales servicios de AWS utilizados y su pro
 
 ```
 AWS_Datalake/
-├── .git/                        # Control de versiones con Git
-├── aws_data_lake/
-│   ├── cloudformation/          # Plantillas CloudFormation por servicio
-│      ├── eventbridge/          # Configuraciones para EventBridge
-│      ├── glue_data_catalog/    # Definición de catálogos de Glue
-│      ├── glue_jobs/            # Definición de Glue Jobs
-│      ├── lambda/               # Creación de funciones Lambda
-│      ├── s3/                   # Buckets de almacenamiento
-│      ├── secrets_manager/      # Manejo de secretos
-│      └── step_functions/       # Definición de Step Functions
+│
+├── cloudformation/              # Plantillas CloudFormation por servicio   
+│    │   
+│    ├── eventbridge/            # Configuraciones para EventBridge (rules)
+│    ├── glue_data_catalog/      # Definición de Glue Data Catalog
+│    ├── glue_jobs/              # Definición de Glue Jobs (ETL)
+│    ├── lambda/                 # Creación de funciones Lambda (notificación)
+│    ├── s3/                     # Buckets de almacenamiento (S3)
+│    ├── secrets_manager/        # Manejo de secretos
+│    └── step_functions/         # Definición de Step Functions (State Machines)
+│
 │
 ├── upload_resources_to_bucket/  # Utilidad para cargar recursos a S3
+│   │
 │   ├── csv/                     # CSVs para procesamiento
 │   ├── jsons/                   # JSONs auxiliares
 │   └── python/                  # Scripts y zips de dependencias
